@@ -148,3 +148,19 @@
             }))
     )
 )
+
+
+(define-data-var decay-rate uint u5)
+
+(define-public (apply-reputation-decay (user principal))
+    (let (
+        (current-score (get-reputation user))
+        (decay-amount (/ (* current-score (var-get decay-rate)) u100))
+    )
+        (asserts! (> current-score u0) (err u1))
+        (map-set user-reputation
+            { user: user }
+            { score: (- current-score decay-amount) })
+        (ok true)
+    )
+)
