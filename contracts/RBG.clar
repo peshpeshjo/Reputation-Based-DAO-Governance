@@ -122,3 +122,29 @@
     )
 )
 
+
+(define-map proposal-metadata 
+    { proposal-id: uint }
+    {
+        description: (string-utf8 500),
+        url: (optional (string-utf8 256)),
+        category: (string-ascii 20)
+    }
+)
+
+(define-public (add-proposal-metadata 
+    (proposal-id uint) 
+    (description (string-utf8 500))
+    (url (optional (string-utf8 256)))
+    (category (string-ascii 20)))
+    (let ((proposal (unwrap! (map-get? proposals { proposal-id: proposal-id }) (err u3))))
+        (asserts! (is-eq tx-sender (get creator proposal)) (err u5))
+        (ok (map-set proposal-metadata
+            { proposal-id: proposal-id }
+            {
+                description: description,
+                url: url,
+                category: category
+            }))
+    )
+)
