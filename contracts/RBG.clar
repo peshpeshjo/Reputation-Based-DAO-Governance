@@ -90,3 +90,24 @@
 (define-read-only (get-user-reputation (user principal))
     (map-get? user-reputation { user: user })
 )
+
+
+(define-public (execute-proposal (proposal-id uint))
+    (let (
+        (proposal (unwrap! (map-get? proposals { proposal-id: proposal-id }) (err u3)))
+    )
+        (asserts! (is-eq (get status proposal) "active") (err u2))
+        (asserts! (> stacks-block-height (get end-block proposal)) (err u4))
+        
+        (if (> (get votes-for proposal) (get votes-against proposal))
+            (begin
+                (map-set proposals { proposal-id: proposal-id }
+                    (merge proposal { status: "passed" }))
+                (ok true))
+            (begin
+                (map-set proposals { proposal-id: proposal-id }
+                    (merge proposal { status: "failed" }))
+                (ok true))
+        )
+    )
+)
