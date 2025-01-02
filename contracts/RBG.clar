@@ -111,3 +111,14 @@
         )
     )
 )
+
+
+(define-public (reward-participation (user principal))
+    (let ((current-score (get-reputation user)))
+        (map-set user-reputation 
+            { user: user }
+            { score: (+ current-score u1) })
+        (ok true)
+    )
+)
+
