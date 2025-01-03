@@ -112,3 +112,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - Thanks to the **Stacks** blockchain for enabling smart contracts.
 - Thanks to **Vitest** for providing an excellent testing framework.
+
