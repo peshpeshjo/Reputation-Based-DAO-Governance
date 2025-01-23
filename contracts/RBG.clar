@@ -226,3 +226,16 @@
             }))
     )
 )
+
+
+
+(define-data-var emergency-threshold uint u800)
+
+(define-public (emergency-cancel-proposal (proposal-id uint))
+    (let ((proposal (unwrap! (map-get? proposals { proposal-id: proposal-id }) (err u3))))
+        (asserts! (>= (get-reputation tx-sender) (var-get emergency-threshold)) (err u1))
+        (ok (map-set proposals 
+            { proposal-id: proposal-id }
+            (merge proposal { status: "cancelled" })))
+    )
+)
