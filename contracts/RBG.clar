@@ -164,3 +164,19 @@
         (ok true)
     )
 )
+
+
+
+;; Add this map to track delegations
+(define-map vote-delegations 
+    { delegator: principal } 
+    { delegate: principal })
+
+(define-public (delegate-votes (delegate-to principal))
+    (begin
+        (asserts! (> (get-reputation tx-sender) u0) (err u1))
+        (ok (map-set vote-delegations 
+            { delegator: tx-sender }
+            { delegate: delegate-to }))
+    )
+)
