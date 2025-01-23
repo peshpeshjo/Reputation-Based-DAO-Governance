@@ -208,3 +208,21 @@
             { amount: amount, lock-until: (+ stacks-block-height lock-blocks) }))
     )
 )
+
+
+
+(define-map user-achievements 
+    { user: principal } 
+    { proposals-created: uint, successful-votes: uint })
+
+(define-public (update-achievements (user principal))
+    (let ((current-achievements (default-to { proposals-created: u0, successful-votes: u0 }
+            (map-get? user-achievements { user: user }))))
+        (ok (map-set user-achievements 
+            { user: user }
+            { 
+                proposals-created: (+ (get proposals-created current-achievements) u1),
+                successful-votes: (get successful-votes current-achievements)
+            }))
+    )
+)
