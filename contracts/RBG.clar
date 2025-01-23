@@ -239,3 +239,21 @@
             (merge proposal { status: "cancelled" })))
     )
 )
+
+
+
+
+(define-map boost-events 
+    { event-id: uint } 
+    { multiplier: uint, end-block: uint })
+
+(define-data-var boost-event-count uint u0)
+
+(define-public (create-boost-event (multiplier uint) (duration uint))
+    (let ((new-id (+ (var-get boost-event-count) u1)))
+        (asserts! (>= (get-reputation tx-sender) u500) (err u1))
+        (ok (map-set boost-events 
+            { event-id: new-id }
+            { multiplier: multiplier, end-block: (+ stacks-block-height duration) }))
+    )
+)
