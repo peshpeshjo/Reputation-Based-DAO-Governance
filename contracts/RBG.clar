@@ -180,3 +180,16 @@
             { delegate: delegate-to }))
     )
 )
+
+
+
+(define-map proposal-tags 
+    { proposal-id: uint } 
+    { tags: (list 5 (string-ascii 20)) })
+
+(define-public (add-proposal-tags (proposal-id uint) (tags (list 5 (string-ascii 20))))
+    (let ((proposal (unwrap! (map-get? proposals { proposal-id: proposal-id }) (err u3))))
+        (asserts! (is-eq tx-sender (get creator proposal)) (err u5))
+        (ok (map-set proposal-tags { proposal-id: proposal-id } { tags: tags }))
+    )
+)
