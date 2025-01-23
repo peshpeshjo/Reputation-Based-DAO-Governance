@@ -257,3 +257,19 @@
             { multiplier: multiplier, end-block: (+ stacks-block-height duration) }))
     )
 )
+
+
+
+
+(define-map category-requirements
+    { category: (string-ascii 20) }
+    { min-reputation: uint })
+
+(define-public (set-category-requirement (category (string-ascii 20)) (min-rep uint))
+    (begin
+        (asserts! (>= (get-reputation tx-sender) u1000) (err u1))
+        (ok (map-set category-requirements 
+            { category: category }
+            { min-reputation: min-rep }))
+    )
+)
