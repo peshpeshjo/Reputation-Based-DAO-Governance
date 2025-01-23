@@ -193,3 +193,18 @@
         (ok (map-set proposal-tags { proposal-id: proposal-id } { tags: tags }))
     )
 )
+
+
+
+(define-map staked-reputation 
+    { user: principal } 
+    { amount: uint, lock-until: uint })
+
+(define-public (stake-reputation (amount uint) (lock-blocks uint))
+    (let ((user-rep (get-reputation tx-sender)))
+        (asserts! (>= user-rep amount) (err u1))
+        (ok (map-set staked-reputation 
+            { user: tx-sender }
+            { amount: amount, lock-until: (+ stacks-block-height lock-blocks) }))
+    )
+)
