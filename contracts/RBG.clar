@@ -273,3 +273,107 @@
             { min-reputation: min-rep }))
     )
 )
+
+
+
+;; Define milestone levels and rewards
+(define-map reputation-milestones 
+    { level: uint }
+    { threshold: uint, bonus: uint })
+
+(define-public (check-milestone (user principal))
+    (let ((user-rep (get-reputation user)))
+        (match (map-get? reputation-milestones 
+            { level: (/ user-rep u100) })
+            milestone (begin
+                (unwrap! (reward-participation user) (err u1))
+                (ok true))
+            (ok false))))
+
+
+
+(define-map voting-power-multiplier
+    { user: principal }
+    { last-vote: uint, multiplier: uint })
+
+(define-public (calculate-voting-power (user principal))
+    (let ((blocks-since-last-vote (- stacks-block-height 
+            (default-to u0 (get last-vote (map-get? voting-power-multiplier { user: user }))))))
+        (ok (map-set voting-power-multiplier
+            { user: user }
+            { 
+                last-vote: stacks-block-height,
+                multiplier: (+ u100 (/ blocks-since-last-vote u100))
+            }))))
+
+
+
+
+(define-map proposal-challenges
+    { proposal-id: uint }
+    { challenger: principal, reason: (string-ascii 100), status: (string-ascii 10) })
+
+(define-public (challenge-proposal (proposal-id uint) (reason (string-ascii 100)))
+    (let ((user-rep (get-reputation tx-sender)))
+        (asserts! (>= user-rep u200) (err u1))
+        (ok (map-set proposal-challenges
+            { proposal-id: proposal-id }
+            { challenger: tx-sender, reason: reason, status: "pending" }))))
+
+
+
+(define-map reputation-loans
+    { borrower: principal }
+    { lender: principal, amount: uint, due-block: uint })
+
+(define-public (lend-reputation (borrower principal) (amount uint) (duration uint))
+    (let ((lender-rep (get-reputation tx-sender)))
+        (asserts! (>= lender-rep amount) (err u1))
+        (ok (map-set reputation-loans
+            { borrower: borrower }
+            { lender: tx-sender, amount: amount, due-block: (+ stacks-block-height duration) }))))
+
+
+
+
+(define-map proposal-templates
+    { template-id: uint }
+    { 
+        name: (string-ascii 20),
+        description: (string-ascii 100),
+        category: (string-ascii 20),
+        duration: uint
+    })
+
+(define-public (create-template 
+    (name (string-ascii 20))
+    (description (string-ascii 100))
+    (category (string-ascii 20))
+    (duration uint))
+    (let ((template-id (+ (var-get proposal-count) u1)))
+        (ok (map-set proposal-templates
+            { template-id: template-id }
+            { 
+                name: name,
+                description: description,
+                category: category,
+                duration: duration
+            }))))
+
+
+
+
+(define-map reputation-recovery
+    { user: principal }
+    { tasks-completed: uint, recovery-amount: uint })
+
+(define-public (complete-recovery-task (user principal))
+    (let ((current-tasks (default-to 
+            { tasks-completed: u0, recovery-amount: u0 }
+            (map-get? reputation-recovery { user: user }))))
+        (ok (map-set reputation-recovery
+            { user: user }
+            { 
+                tasks-completed: (+ (get tasks-completed current-tasks) u1),
+                recovery-amount: (+ (get recovery-amount current-tasks) u5)
+            }))))
