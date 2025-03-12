@@ -377,3 +377,159 @@
                 tasks-completed: (+ (get tasks-completed current-tasks) u1),
                 recovery-amount: (+ (get recovery-amount current-tasks) u5)
             }))))
+
+
+;; Define badge types and requirements
+(define-map reputation-badges
+    { user: principal }
+    { badges: (list 10 (string-ascii 20)) })
+
+(define-map badge-requirements
+    { badge-name: (string-ascii 20) }
+    { min-reputation: uint, min-proposals: uint })
+
+(define-public (issue-badge (user principal) (badge-name (string-ascii 20)))
+    (let (
+        (user-rep (get-reputation user))
+        (requirements (unwrap! (map-get? badge-requirements { badge-name: badge-name }) (err u1)))
+        (current-badges (default-to { badges: (list) } (map-get? reputation-badges { user: user })))
+    )
+        (asserts! (>= user-rep (get min-reputation requirements)) (err u2))
+        (ok (map-set reputation-badges
+            { user: user }
+            { badges: (unwrap! (as-max-len? (append (get badges current-badges) badge-name) u10) (err u3)) }))
+    )
+)
+
+(define-map proposal-sponsors
+    { proposal-id: uint }
+    { sponsors: (list 5 principal), total-backing: uint })
+
+(define-public (sponsor-proposal (proposal-id uint) (amount uint))
+    (let (
+        (user-rep (get-reputation tx-sender))
+        (current-sponsors (default-to { sponsors: (list), total-backing: u0 } 
+            (map-get? proposal-sponsors { proposal-id: proposal-id })))
+    )
+        (asserts! (>= user-rep amount) (err u1))
+        (ok (map-set proposal-sponsors
+            { proposal-id: proposal-id }
+            {
+                sponsors: (unwrap! (as-max-len? (append (get sponsors current-sponsors) tx-sender) u5) (err u2)),
+                total-backing: (+ (get total-backing current-sponsors) amount)
+            }))
+    )
+)
+
+
+(define-map time-weighted-rep
+    { user: principal }
+    { last-active: uint, weight: uint })
+
+(define-public (update-time-weight)
+    (let (
+        (current-data (default-to { last-active: u0, weight: u100 } 
+            (map-get? time-weighted-rep { user: tx-sender })))
+        (blocks-passed (- stacks-block-height (get last-active current-data)))
+    )
+        (ok (map-set time-weighted-rep
+            { user: tx-sender }
+            {
+                last-active: stacks-block-height,
+                weight: (+ u100 (/ blocks-passed u100))
+            }))
+    )
+)
+
+
+(define-map category-voting-rules
+    { category: (string-ascii 20) }
+    { min-rep: uint, voting-period: uint, approval-threshold: uint })
+
+(define-public (set-category-rules 
+    (category (string-ascii 20)) 
+    (min-rep uint) 
+    (voting-period uint)
+    (threshold uint))
+    (begin
+        (asserts! (>= (get-reputation tx-sender) u1000) (err u1))
+        (ok (map-set category-voting-rules
+            { category: category }
+            { min-rep: min-rep, voting-period: voting-period, approval-threshold: threshold }))
+    )
+)
+
+
+(define-map staking-rewards
+    { user: principal }
+    { staked-amount: uint, start-block: uint, reward-rate: uint })
+
+(define-public (stake-with-rewards (amount uint))
+    (let ((user-rep (get-reputation tx-sender)))
+        (asserts! (>= user-rep amount) (err u1))
+        (ok (map-set staking-rewards
+            { user: tx-sender }
+            { 
+                staked-amount: amount,
+                start-block: stacks-block-height,
+                reward-rate: u5
+            }))
+    )
+)
+
+
+(define-map proposal-comments
+    { proposal-id: uint, comment-id: uint }
+    { author: principal, content: (string-utf8 500), timestamp: uint })
+
+(define-data-var comment-count uint u0)
+
+(define-public (add-comment (proposal-id uint) (content (string-utf8 500)))
+    (let (
+        (new-id (+ (var-get comment-count) u1))
+        (user-rep (get-reputation tx-sender))
+    )
+        (asserts! (> user-rep u50) (err u1))
+        (var-set comment-count new-id)
+        (ok (map-set proposal-comments
+            { proposal-id: proposal-id, comment-id: new-id }
+            { 
+                author: tx-sender,
+                content: content,
+                timestamp: stacks-block-height
+            }))
+    )
+)
+
+(define-map time-locked-delegations
+    { delegator: principal }
+    { delegate: principal, amount: uint, unlock-height: uint })
+
+(define-public (delegate-with-timelock (delegate-to principal) (amount uint) (lock-period uint))
+    (let ((user-rep (get-reputation tx-sender)))
+        (asserts! (>= user-rep amount) (err u1))
+        (ok (map-set time-locked-delegations
+            { delegator: tx-sender }
+            { 
+                delegate: delegate-to,
+                amount: amount,
+                unlock-height: (+ stacks-block-height lock-period)
+            }))
+    )
+)
+(define-map recovery-challenges
+    { user: principal }
+    { challenge-type: (string-ascii 20), target-score: uint, completed: bool })
+
+(define-public (create-recovery-challenge (challenge-type (string-ascii 20)) (target uint))
+    (let ((current-rep (get-reputation tx-sender)))
+        (asserts! (< current-rep u50) (err u1))
+        (ok (map-set recovery-challenges
+            { user: tx-sender }
+            { 
+                challenge-type: challenge-type,
+                target-score: target,
+                completed: false
+            }))
+    )
+)
