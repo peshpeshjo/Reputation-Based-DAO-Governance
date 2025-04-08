@@ -533,3 +533,147 @@
             }))
     )
 )
+
+
+(define-map boost-periods 
+    { period-id: uint }
+    { multiplier: uint, start: uint, end: uint, active: bool })
+
+(define-data-var boost-period-count uint u0)
+
+(define-public (create-boost-period (multiplier uint) (duration uint))
+    (let ((new-id (+ (var-get boost-period-count) u1)))
+        (map-set boost-periods
+            { period-id: new-id }
+            { 
+                multiplier: multiplier,
+                start: stacks-block-height,
+                end: (+ stacks-block-height duration),
+                active: true
+            })
+        (var-set boost-period-count new-id)
+        (ok new-id)
+    )
+)
+
+
+(define-map category-weights
+    { category: (string-ascii 20) }
+    { weight: uint })
+
+(define-public (set-category-weight (category (string-ascii 20)) (weight uint))
+    (begin
+        (asserts! (>= (get-reputation tx-sender) u1000) (err u1))
+        (ok (map-set category-weights 
+            { category: category }
+            { weight: weight }))
+    )
+)
+
+
+
+
+
+
+
+(define-map reputation-levels
+    { user: principal }
+    { level: uint, xp: uint })
+
+(define-data-var xp-per-level uint u100)
+
+(define-public (update-user-level (user principal))
+    (let (
+        (current-rep (get-reputation user))
+        (current-level (default-to { level: u1, xp: u0 } 
+            (map-get? reputation-levels { user: user })))
+    )
+        (ok (map-set reputation-levels
+            { user: user }
+            { 
+                level: (+ (get level current-level) u1),
+                xp: (+ (get xp current-level) current-rep)
+            }))
+    )
+)
+
+(define-map proposal-endorsements
+    { proposal-id: uint }
+    { endorsers: (list 10 principal), weight: uint })
+
+(define-public (endorse-proposal (proposal-id uint))
+    (let (
+        (user-rep (get-reputation tx-sender))
+        (current-endorsements (default-to { endorsers: (list), weight: u0 }
+            (map-get? proposal-endorsements { proposal-id: proposal-id })))
+    )
+        (ok (map-set proposal-endorsements
+            { proposal-id: proposal-id }
+            {
+                endorsers: (unwrap! (as-max-len? 
+                    (append (get endorsers current-endorsements) tx-sender) u10) (err u2)),
+                weight: (+ (get weight current-endorsements) user-rep)
+            }))
+    )
+)
+
+
+(define-map recovery-missions
+    { mission-id: uint }
+    { task: (string-ascii 50), reward: uint, completed: bool })
+
+(define-data-var mission-count uint u0)
+
+(define-public (create-recovery-mission (task (string-ascii 50)) (reward uint))
+    (let ((new-id (+ (var-get mission-count) u1)))
+        (map-set recovery-missions
+            { mission-id: new-id }
+            { task: task, reward: reward, completed: false })
+        (var-set mission-count new-id)
+        (ok new-id)
+    )
+)
+
+(define-map locked-delegations
+    { from: principal }
+    { to: principal, amount: uint, unlock-height: uint })
+
+(define-public (delegate-locked (to principal) (amount uint) (blocks uint))
+    (let ((user-rep (get-reputation tx-sender)))
+        (asserts! (>= user-rep amount) (err u1))
+        (ok (map-set locked-delegations
+            { from: tx-sender }
+            { 
+                to: to,
+                amount: amount,
+                unlock-height: (+ stacks-block-height blocks)
+            }))
+    )
+)
+
+
+(define-map user-achievements-extended
+    { user: principal }
+    { 
+        proposals-created: uint,
+        votes-cast: uint,
+        endorsements: uint,
+        reputation-score: uint
+    })
+
+(define-public (update-user-achievements (user principal))
+    (let (
+        (current-data (default-to 
+            { proposals-created: u0, votes-cast: u0, endorsements: u0, reputation-score: u0 }
+            (map-get? user-achievements-extended { user: user })))
+    )
+        (ok (map-set user-achievements-extended
+            { user: user }
+            { 
+                proposals-created: (+ (get proposals-created current-data) u1),
+                votes-cast: (get votes-cast current-data),
+                endorsements: (get endorsements current-data),
+                reputation-score: (get-reputation user)
+            }))
+    )
+)
