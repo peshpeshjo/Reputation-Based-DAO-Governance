@@ -677,3 +677,53 @@
             }))
     )
 )
+
+
+(define-map quests
+    { quest-id: uint }
+    {
+        name: (string-ascii 50),
+        description: (string-utf8 500),
+        reputation-reward: uint,
+        required-level: uint,
+        active: bool
+    }
+)
+
+(define-map user-quests
+    { user: principal, quest-id: uint }
+    { completed: bool, completion-block: uint }
+)
+
+(define-data-var quest-counter uint u0)
+
+(define-public (create-quest 
+    (name (string-ascii 50))
+    (description (string-utf8 500))
+    (reward uint)
+    (required-level uint))
+    (let ((new-id (+ (var-get quest-counter) u1)))
+        (asserts! (>= (get-reputation tx-sender) u1000) (err u1))
+        (var-set quest-counter new-id)
+        (ok (map-set quests
+            { quest-id: new-id }
+            {
+                name: name,
+                description: description,
+                reputation-reward: reward,
+                required-level: required-level,
+                active: true
+            }))
+    )
+)
+(define-public (complete-quest (quest-id uint))
+    (let (
+        (quest (unwrap! (map-get? quests { quest-id: quest-id }) (err u1)))
+        (user-rep (get-reputation tx-sender))
+    )
+        (asserts! (> user-rep (get required-level quest)) (err u2))
+        (ok (map-set user-quests
+            { user: tx-sender, quest-id: quest-id }
+            { completed: true, completion-block: stacks-block-height }))
+    )
+)
