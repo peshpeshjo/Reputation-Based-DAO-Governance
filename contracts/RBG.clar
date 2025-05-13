@@ -727,3 +727,51 @@
             { completed: true, completion-block: stacks-block-height }))
     )
 )
+
+
+(define-map reputation-assets
+    { asset-id: uint }
+    {
+        name: (string-ascii 50),
+        creator: principal,
+        reputation-backed: uint,
+        transferable: bool,
+        owner: principal
+    }
+)
+
+(define-data-var asset-counter uint u0)
+
+(define-public (create-asset 
+    (name (string-ascii 50)) 
+    (reputation-amount uint)
+    (transferable bool))
+    (let (
+        (user-rep (get-reputation tx-sender))
+        (new-id (+ (var-get asset-counter) u1))
+    )
+        (asserts! (>= user-rep reputation-amount) (err u1))
+        (var-set asset-counter new-id)
+        (ok (map-set reputation-assets
+            { asset-id: new-id }
+            {
+                name: name,
+                creator: tx-sender,
+                reputation-backed: reputation-amount,
+                transferable: transferable,
+                owner: tx-sender
+            }))
+    )
+)
+
+(define-public (transfer-asset (asset-id uint) (recipient principal))
+    (let (
+        (asset (unwrap! (map-get? reputation-assets { asset-id: asset-id }) (err u1)))
+    )
+        (asserts! (is-eq tx-sender (get owner asset)) (err u2))
+        (asserts! (get transferable asset) (err u3))
+        (ok (map-set reputation-assets
+            { asset-id: asset-id }
+            (merge asset { owner: recipient })))
+    )
+)
