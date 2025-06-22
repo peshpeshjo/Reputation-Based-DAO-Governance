@@ -775,3 +775,218 @@
             (merge asset { owner: recipient })))
     )
 )
+
+(define-fungible-token reputation-backed-token)
+
+(define-map rbt-reserves
+    { user: principal }
+    { locked-reputation: uint, minted-tokens: uint, lock-height: uint }
+)
+
+(define-map marketplace-orders
+    { order-id: uint }
+    {
+        seller: principal,
+        amount: uint,
+        price-per-token: uint,
+        reputation-requirement: uint,
+        active: bool,
+        created-height: uint
+    }
+)
+
+(define-map trade-history
+    { trade-id: uint }
+    {
+        buyer: principal,
+        seller: principal,
+        amount: uint,
+        price: uint,
+        block-height: uint
+    }
+)
+
+(define-data-var order-counter uint u0)
+(define-data-var trade-counter uint u0)
+(define-data-var mint-ratio uint u10)
+(define-data-var min-lock-period uint u1000)
+(define-data-var marketplace-fee uint u25)
+
+(define-public (mint-rbt (reputation-amount uint))
+    (let (
+        (user-rep (get-reputation tx-sender))
+        (token-amount (* reputation-amount (var-get mint-ratio)))
+        (current-reserve (default-to 
+            { locked-reputation: u0, minted-tokens: u0, lock-height: u0 }
+            (map-get? rbt-reserves { user: tx-sender })))
+    )
+        (asserts! (>= user-rep reputation-amount) (err u1))
+        (asserts! (> reputation-amount u0) (err u2))
+        
+        (try! (ft-mint? reputation-backed-token token-amount tx-sender))
+        
+        (map-set user-reputation
+            { user: tx-sender }
+            { score: (- user-rep reputation-amount) })
+        
+        (ok (map-set rbt-reserves
+            { user: tx-sender }
+            {
+                locked-reputation: (+ (get locked-reputation current-reserve) reputation-amount),
+                minted-tokens: (+ (get minted-tokens current-reserve) token-amount),
+                lock-height: (+ stacks-block-height (var-get min-lock-period))
+            }))
+    )
+)
+
+(define-public (redeem-rbt (token-amount uint))
+    (let (
+        (reputation-amount (/ token-amount (var-get mint-ratio)))
+        (user-balance (ft-get-balance reputation-backed-token tx-sender))
+        (current-reserve (unwrap! (map-get? rbt-reserves { user: tx-sender }) (err u3)))
+        (current-rep (get-reputation tx-sender))
+    )
+        (asserts! (>= user-balance token-amount) (err u1))
+        (asserts! (>= (get minted-tokens current-reserve) token-amount) (err u2))
+        (asserts! (>= stacks-block-height (get lock-height current-reserve)) (err u4))
+        
+        (try! (ft-burn? reputation-backed-token token-amount tx-sender))
+        
+        (map-set user-reputation
+            { user: tx-sender }
+            { score: (+ current-rep reputation-amount) })
+        
+        (ok (map-set rbt-reserves
+            { user: tx-sender }
+            {
+                locked-reputation: (- (get locked-reputation current-reserve) reputation-amount),
+                minted-tokens: (- (get minted-tokens current-reserve) token-amount),
+                lock-height: (get lock-height current-reserve)
+            }))
+    )
+)
+
+(define-public (create-sell-order 
+    (amount uint) 
+    (price-per-token uint) 
+    (min-buyer-reputation uint))
+    (let (
+        (user-balance (ft-get-balance reputation-backed-token tx-sender))
+        (new-order-id (+ (var-get order-counter) u1))
+    )
+        (asserts! (>= user-balance amount) (err u1))
+        (asserts! (> price-per-token u0) (err u2))
+        (asserts! (> amount u0) (err u3))
+        
+        (var-set order-counter new-order-id)
+        
+        (ok (map-set marketplace-orders
+            { order-id: new-order-id }
+            {
+                seller: tx-sender,
+                amount: amount,
+                price-per-token: price-per-token,
+                reputation-requirement: min-buyer-reputation,
+                active: true,
+                created-height: stacks-block-height
+            }))
+    )
+)
+
+(define-public (buy-from-order (order-id uint) (amount uint))
+    (let (
+        (order (unwrap! (map-get? marketplace-orders { order-id: order-id }) (err u1)))
+        (buyer-rep (get-reputation tx-sender))
+        (total-cost (* amount (get price-per-token order)))
+        (fee-amount (/ (* total-cost (var-get marketplace-fee)) u1000))
+        (seller-amount (- total-cost fee-amount))
+        (new-trade-id (+ (var-get trade-counter) u1))
+    )
+        (asserts! (get active order) (err u2))
+        (asserts! (>= (get amount order) amount) (err u3))
+        (asserts! (>= buyer-rep (get reputation-requirement order)) (err u4))
+        (asserts! (not (is-eq tx-sender (get seller order))) (err u5))
+        
+        (try! (stx-transfer? total-cost tx-sender (get seller order)))
+        (try! (ft-transfer? reputation-backed-token amount (get seller order) tx-sender))
+        
+        (var-set trade-counter new-trade-id)
+        
+        (map-set trade-history
+            { trade-id: new-trade-id }
+            {
+                buyer: tx-sender,
+                seller: (get seller order),
+                amount: amount,
+                price: (get price-per-token order),
+                block-height: stacks-block-height
+            })
+        
+        (if (is-eq (get amount order) amount)
+            (map-set marketplace-orders
+                { order-id: order-id }
+                (merge order { active: false }))
+            (map-set marketplace-orders
+                { order-id: order-id }
+                (merge order { amount: (- (get amount order) amount) })))
+        
+        (ok true)
+    )
+)
+
+(define-public (cancel-order (order-id uint))
+    (let (
+        (order (unwrap! (map-get? marketplace-orders { order-id: order-id }) (err u1)))
+    )
+        (asserts! (is-eq tx-sender (get seller order)) (err u2))
+        (asserts! (get active order) (err u3))
+        
+        (ok (map-set marketplace-orders
+            { order-id: order-id }
+            (merge order { active: false })))
+    )
+)
+
+(define-public (update-mint-ratio (new-ratio uint))
+    (begin
+        (asserts! (>= (get-reputation tx-sender) u1000) (err u1))
+        (asserts! (> new-ratio u0) (err u2))
+        (ok (var-set mint-ratio new-ratio))
+    )
+)
+
+(define-public (emergency-pause-marketplace)
+    (begin
+        (asserts! (>= (get-reputation tx-sender) (var-get emergency-threshold)) (err u1))
+        (ok (var-set marketplace-fee u1000))
+    )
+)
+
+(define-read-only (get-rbt-balance (user principal))
+    (ft-get-balance reputation-backed-token user)
+)
+
+(define-read-only (get-user-reserves (user principal))
+    (map-get? rbt-reserves { user: user })
+)
+
+(define-read-only (get-order-details (order-id uint))
+    (map-get? marketplace-orders { order-id: order-id })
+)
+
+(define-read-only (get-trade-details (trade-id uint))
+    (map-get? trade-history { trade-id: trade-id })
+)
+
+(define-read-only (get-marketplace-stats)
+    {
+        total-orders: (var-get order-counter),
+        total-trades: (var-get trade-counter),
+        current-mint-ratio: (var-get mint-ratio),
+        marketplace-fee: (var-get marketplace-fee)
+    }
+)
+
+(define-read-only (calculate-rbt-value (token-amount uint))
+    (/ token-amount (var-get mint-ratio))
+)
