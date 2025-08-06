@@ -19,6 +19,13 @@ epoch = 3.1
 [repl.ReputationInsurance]
 passes = ['check_checker']
 
+[contracts.ReputationStaking]
+path = 'contracts/ReputationStaking.clar'
+clarity_version = 3
+epoch = 3.1
+[repl.ReputationStaking]
+passes = ['check_checker']
+
 [repl.analysis.check_checker]
 strict = false
 trusted_sender = false
