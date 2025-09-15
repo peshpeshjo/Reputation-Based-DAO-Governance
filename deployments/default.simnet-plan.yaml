@@ -54,4 +54,19 @@ plan:
             emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
             path: "contracts\\RBG.clar"
             clarity-version: 3
+        - emulated-contract-publish:
+            contract-name: ReputationArbitration
+            emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+            path: "contracts\\ReputationArbitration.clar"
+            clarity-version: 3
+        - emulated-contract-publish:
+            contract-name: ReputationInsurance
+            emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+            path: "contracts\\ReputationInsurance.clar"
+            clarity-version: 3
+        - emulated-contract-publish:
+            contract-name: ReputationStaking
+            emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+            path: "contracts\\ReputationStaking.clar"
+            clarity-version: 3
       epoch: "3.1"
